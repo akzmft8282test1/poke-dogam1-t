@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>포켓몬 랜덤 도감 룰렛</title>
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f8f9fa; font-family: 'Malgun Gothic', sans-serif; }
+        .navbar-brand { font-weight: bold; color: #ffcb05 !important; text-shadow: 2px 2px #3b4cca; }
+        .card { border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); border: none; }
+        .pokemon-card { display: none; background: #fff; border: 2px solid #3b4cca; border-radius: 20px; padding: 25px; margin-top: 20px; text-align: center; }
+        .poke-num { font-size: 1.2rem; color: #6c757d; font-weight: bold; }
+        .poke-name { font-size: 2.2rem; font-weight: 900; color: #212529; margin-bottom: 15px; }
+        .auth-box { max-width: 400px; margin: 80px auto; }
+        .btn-poke { background-color: #ffcb05; color: #3b4cca; font-weight: bold; border: 2px solid #3b4cca; transition: 0.2s; }
+        .btn-poke:hover { background-color: #3b4cca; color: #ffcb05; }
+        .list-item { background: #f1f3f5; border-radius: 8px; padding: 8px 15px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+        .nav-tabs .nav-link { font-weight: bold; color: #495057; }
+        .nav-tabs .nav-link.active { color: #3b4cca; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<nav class="navbar navbar-dark bg-dark">
+    <div class="container">
+        <a class="navbar-brand" href="#">Pokémon Picker</a>
+        <span class="navbar-text text-white" id="userInfo" style="display:none;">
+            <span id="userTag" class="badge badge-info mr-2"></span> 
+            <button class="btn btn-sm btn-outline-danger" onclick="logout()">로그아웃</button>
+        </span>
+    </div>
+</nav>
+
+<div class="container">
+    <div id="authSection" class="card auth-box p-4">
+        <h3 class="text-center mb-4" id="authTitle">로그인</h3>
+        <div class="form-group"><input type="text" id="username" class="form-control" placeholder="아이디" required></div>
+        <div class="form-group"><input type="password" id="password" class="form-control" placeholder="비밀번호" required></div>
+        <button class="btn btn-primary btn-block" id="primaryAuthBtn" onclick="login()">로그인</button>
+        <button class="btn btn-link btn-block btn-sm" id="toggleAuthBtn" onclick="toggleAuthMode()">계정이 없으신가요? 회원가입</button>
+    </div>
+
+    <div id="mainSection" class="row mt-4" style="display:none;">
+        <div class="col-md-7 mb-4">
+            <div class="card p-4 text-center">
+                <h2>포켓몬 무작위 뽑기</h2>
+                <p class="text-muted">1 ~ 1300번 포켓몬을 실시간으로 추첨합니다.</p>
+                
+                <div id="adminPanel" class="alert alert-warning text-left" style="display:none;">
+                    <strong>🛠️ 관리자 조작 패널</strong>
+                    <input type="number" id="customId" class="form-control mt-2" placeholder="원하는 도감 번호 강제 지정 (1~1300)">
+                </div>
+
+                <button class="btn btn-lg btn-poke btn-block my-3" onclick="rollPokemon()">🔮 포켓몬 뽑기 / 다시 뽑기</button>
+                
+                <div id="pokemonResult" class="pokemon-card">
+                    <div class="poke-num" id="resNumber">No. 0000</div>
+                    <div class="poke-name" id="resName">포켓몬 이름</div>
+                    <div class="mb-3">
+                        <a href="#" id="resLink" target="_blank" class="btn btn-sm btn-outline-secondary">공식 도감 링크 ↗</a>
+                    </div>
+                    <div class="d-flex justify-content-center bg-light p-2 rounded">
+                        <button class="btn btn-success mr-2" onclick="savePokemon()">📦 보관함 저장</button>
+                        <button class="btn btn-warning text-white" onclick="toggleFavorite(currentPokemon)">⭐ 즐겨찾기 토글</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-5">
+            <div class="card p-3">
+                <ul class="nav nav-tabs mb-3" id="listTab" role="tablist">
+                    <li class="nav-item flex-fill text-center">
+                        <a class="nav-link active" id="history-tab" data-toggle="tab" href="#historyMenu" role="tab" onclick="loadHistory()">📦 전체 보관함</a>
+                    </li>
+                    <li class="nav-item flex-fill text-center">
+                        <a class="nav-link" id="favorite-tab" data-toggle="tab" href="#favoriteMenu" role="tab" onclick="loadFavorites()">⭐ 즐겨찾기 (★)</a>
+                    </li>
+                </ul>
+                
+                <div class="tab-content" id="listTabContent">
+                    <div class="tab-pane fade show active" id="historyMenu" role="tabpanel">
+                        <div id="historyList" style="max-height: 450px; overflow-y: auto;"></div>
+                    </div>
+                    <div class="tab-pane fade" id="favoriteMenu" role="tabpanel">
+                        <div id="favoriteList" style="max-height: 450px; overflow-y: auto;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+    let isSignUpMode = false;
+    let currentPokemon = null;
+
+    function toggleAuthMode() {
+        isSignUpMode = !isSignUpMode;
+        document.getElementById('authTitle').innerText = isSignUpMode ? '회원가입' : '로그인';
+        document.getElementById('primaryAuthBtn').innerText = isSignUpMode ? '회원가입 하기' : '로그인';
+        document.getElementById('toggleAuthBtn').innerText = isSignUpMode ? '이미 계정이 있나요? 로그인' : '계정이 없으신가요? 회원가입';
+    }
+
+    async function login() {
+        const username = document.getElementById('username').value;
+        const password = document.getElementById('password').value;
+        const url = isSignUpMode ? '/api/signup' : '/api/login';
+
+        const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password })
+        });
+        const data = await res.json();
+        alert(data.message);
+        
+        if (data.success && !isSignUpMode) showMainPage(data.username, data.isAdmin);
+        if (data.success && isSignUpMode) toggleAuthMode();
+    }
+
+    function showMainPage(username, isAdmin) {
+        document.getElementById('authSection').style.display = 'none';
+        document.getElementById('mainSection').style.display = 'flex';
+        document.getElementById('userInfo').style.display = 'inline-block';
+        
+        const userTag = document.getElementById('userTag');
+        userTag.innerText = username + (isAdmin ? " (관리자)" : "");
+        
+        if(isAdmin) {
+            document.getElementById('adminPanel').style.display = 'block';
+            userTag.className = "badge badge-danger mr-2";
+        }
+        loadHistory();
+    }
+
+    async function logout() {
+        await fetch('/api/logout', { method: 'POST' });
+        location.reload();
+    }
+
+    async function rollPokemon() {
+        const customId = document.getElementById('customId') ? document.getElementById('customId').value : null;
+        const res = await fetch('/api/pokemon/roll', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ customId })
+        });
+        const data = await res.json();
+        if (!data.success) return alert(data.message);
+
+        currentPokemon = data.pokemon;
+        document.getElementById('resNumber').innerText = currentPokemon.number;
+        document.getElementById('resName').innerText = currentPokemon.name;
+        document.getElementById('resLink').href = currentPokemon.url;
+        document.getElementById('pokemonResult').style.display = 'block';
+    }
+
+    async function savePokemon() {
+        if(!currentPokemon) return;
+        const res = await fetch('/api/pokemon/save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ pokemon: currentPokemon })
+        });
+        const data = await res.json();
+        alert(data.message);
+        loadHistory();
+    }
+
+    // 🌟 즐겨찾기 토글 기능 등록 함수
+    async function toggleFavorite(pokemon) {
+        if(!pokemon) return;
+        const res = await fetch('/api/pokemon/toggle-favorite', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ pokemon })
+        });
+        const data = await res.json();
+        alert(data.message);
+        
+        // 현재 열려있는 탭 상태를 새로고침
+        loadHistory();
+        loadFavorites();
+    }
+
+    async function loadHistory() {
+        const res = await fetch('/api/pokemon/history');
+        const data = await res.json();
+        const listDiv = document.getElementById('historyList');
+        
+        if(!data.history || data.history.length === 0) {
+            listDiv.innerHTML = '<p class="text-muted text-center py-4">저장된 기록이 없습니다.</p>';
+            return;
+        }
+        listDiv.innerHTML = data.history.map(p => `
+            <div class="list-item">
+                <div>
+                    <span class="badge badge-secondary mr-2">${p.number}</span>
+                    <strong>${p.name}</strong>
+                </div>
+                <div>
+                    <button class="btn btn-sm btn-warning text-white" onclick='toggleFavorite(${JSON.stringify(p)})'>★</button>
+                    <a href="${p.url}" target="_blank" class="btn btn-sm btn-light">🔗</a>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    async function loadFavorites() {
+        const res = await fetch('/api/pokemon/favorites');
+        const data = await res.json();
+        const listDiv = document.getElementById('favoriteList');
+        
+        if(!data.favorites || data.favorites.length === 0) {
+            listDiv.innerHTML = '<p class="text-muted text-center py-4">즐겨찾기한 포켓몬이 없습니다.</p>';
+            return;
+        }
+        listDiv.innerHTML = data.favorites.map(p => `
+            <div class="list-item" style="border-left: 4px solid #ffcb05;">
+                <div>
+                    <span class="badge badge-warning text-white mr-2">${p.number}</span>
+                    <strong>${p.name}</strong>
+                </div>
+                <div>
+                    <button class="btn btn-sm btn-danger" onclick='toggleFavorite(${JSON.stringify(p)})'>제거</button>
+                    <a href="${p.url}" target="_blank" class="btn btn-sm btn-light">🔗</a>
+                </div>
+            </div>
+        `).join('');
+    }
+</script>
+</body>
+</html>
